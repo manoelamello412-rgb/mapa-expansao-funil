@@ -2120,7 +2120,14 @@ setInterval(()=>{Object.keys(ids).forEach(id=>{const v=document.getElementById(i
   }
 
   // Só aparece no checkout. A conversa com a equipe só existe se o chat estiver ligado no funil (Althea → Funis → conexão: chat_enabled).
-  req(base + '?funnel_id=' + encodeURIComponent(C.funnelId)).then(function (d) { enabled = !!d.enabled; }).catch(function () {});
+  // A resposta pode chegar depois que o chat já abriu: aí o menu é refeito para mostrar "Falar com a equipe".
+  function checkEnabled() {
+    req(base + '?funnel_id=' + encodeURIComponent(C.funnelId)).then(function (d) {
+      var was = enabled; enabled = !!d.enabled;
+      if (enabled && !was && !box.hidden && !live && !busy && idForm.hidden && local.length) menu();
+    }).catch(function () {});
+  }
+  checkEnabled();
   var ck = $('ck'), teaserTimer = 0;
   function syncVisibility() {
     var on = ck.classList.contains('on');
@@ -2211,7 +2218,7 @@ setInterval(()=>{Object.keys(ids).forEach(id=>{const v=document.getElementById(i
   function toggle(open) {
     if (open === !box.hidden) return;
     box.hidden = !open; fab.setAttribute('aria-expanded', String(open)); fab.setAttribute('aria-label', open ? 'Fechar chat' : 'Abrir chat de atendimento');
-    if (open) { dismissTeaser(); if (token && !live) goLive(); greet(); } else stop();
+    if (open) { dismissTeaser(); if (!enabled) checkEnabled(); if (token && !live) goLive(); greet(); } else stop();
   }
   fab.onclick = function () { toggle(box.hidden); };
   $('apc-x').onclick = function () { toggle(false); fab.focus(); };
