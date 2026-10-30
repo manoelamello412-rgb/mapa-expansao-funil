@@ -2152,11 +2152,13 @@ document.getElementById('experience-video').addEventListener('play',event=>{
 <script>
 /* Vídeos: sem JavaScript (ou se o autoplay for bloqueado) os controles nativos continuam disponíveis para dar play.
    Quando o vídeo começa a tocar sozinho, os controles somem e ele fica preso na tela. Toque no vídeo liga/desliga o som. */
-(function(){const ids={'intro-video':'home','experience-video':'experiencia'};
-Object.keys(ids).forEach(id=>{const v=document.getElementById(id);if(!v)return;
- v.addEventListener('playing',()=>{v.controls=false;v.removeAttribute('controls');});
- v.addEventListener('click',()=>{if(v.controls)return;v.muted=!v.muted;if(v.paused&&!v.ended)v.play().catch(()=>{});});});
-setInterval(()=>{Object.keys(ids).forEach(id=>{const v=document.getElementById(id),sec=document.getElementById(ids[id]);if(v&&sec&&sec.classList.contains('on')&&v.paused&&!v.ended&&!v.controls&&v.currentTime===0)v.controls=true;});},1200);})();
+/* Os controles nativos ficam ocultos: o áudio é gerenciado pelo script único abaixo. */
+(function(){
+ for(const id of ['intro-video','experience-video']){
+  const v=document.getElementById(id);if(!v)return;
+  v.controls=false;v.removeAttribute('controls');
+ }
+})();
 </script>
 <style>
 /* Chat do checkout: FAQ com respostas automáticas + conversa com a equipe (Chat/CRM do Althea). */
@@ -2452,12 +2454,43 @@ paint();var o=window.scx;if(typeof o==='function')window.scx=function(){o.apply(
 setInterval(paint,2000);
 }catch(e){console.warn('[ux]',e)}})();
 </script><script>
+/* Correção discreta V6: um único controlador de áudio para a abertura.
+   Autoplay começa mudo; a primeira interação dentro da abertura habilita o som.
+   Interagir nunca executa pause() nem alterna o mute indevidamente. */
 (function(){
- const iv=document.getElementById('intro-video');let soundOn=false;
- const others=()=>['au','experience-video'].some(id=>{const m=document.getElementById(id);return m&&!m.paused&&!m.ended;});
- const sync=()=>{if(!document.getElementById('home')?.classList.contains('on')){iv.pause();return;}if(!window.__funnelEnded)iv.muted=!soundOn||others();};
- const unlock=()=>{if(document.getElementById('home')?.classList.contains('on') && !window.__funnelEnded){soundOn=true;sync();iv.play().catch(()=>{});}};
- ['pointerdown','keydown','touchstart'].forEach(e=>document.addEventListener(e,unlock,{once:true,passive:true}));
- ['play','pause','ended'].forEach(e=>document.addEventListener(e,ev=>{if(ev.target!==iv)sync();},true));
+ const iv=document.getElementById('intro-video');
+ const home=document.getElementById('home');
+ if(!iv||!home)return;
+ let unlocked=false;
+ const homeVisible=()=>home.classList.contains('on')&&!window.__funnelEnded;
+ const otherPlaying=()=>['au','experience-video'].some(id=>{
+  const m=document.getElementById(id);return m&&!m.paused&&!m.ended;
+ });
+ const sync=()=>{
+  if(!homeVisible())return;
+  iv.muted=!unlocked||otherPlaying();
+ };
+ const unlock=event=>{
+  if(!homeVisible()||event.repeat)return;
+  if(event.type==='keydown'&&!['Enter',' ','Spacebar'].includes(event.key))return;
+  // Não interfere nos links, botões, respostas do quiz ou formulário.
+  if(event.target?.closest?.('a,button,input,select,textarea,[data-go]'))return;
+  unlocked=true;
+  sync();
+  if(iv.paused&&!iv.ended){
+   const promise=iv.play();
+   if(promise&&typeof promise.catch==='function')promise.catch(()=>{
+    // Se o navegador só permitir reprodução muda, preservar o vídeo tocando.
+    if(!homeVisible())return;
+    iv.muted=true;
+    iv.play().catch(()=>{});
+   });
+  }
+ };
+ document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
+ document.addEventListener('keydown',unlock,{capture:true});
+ for(const type of ['play','pause','ended']){
+  document.addEventListener(type,event=>{if(event.target!==iv)sync();},true);
+ }
 })();
 </script></body></html>
